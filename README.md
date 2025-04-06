@@ -19,28 +19,24 @@ A simple, user-friendly GUI launcher for [KoboldCPP](https://github.com/LostRuin
 
 ## Installation
 
-1. Download the latest release from the [Releases](https://github.com/yourusername/koboldcpp-launcher/releases) page
-2. Extract the files to a location of your choice
-3. Run `koboldcpp_launcher.exe` (Windows) or `koboldcpp_launcher` (Linux/Mac)
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/koboldcpp-launcher.git
+   cd koboldcpp-launcher
+   ```
+2. Install the requirements:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Run the launcher:
+   ```bash
+   python koboldcpp_launcher.py
+   ```
 
 ### Prerequisites
 
 - Python 3.6+ (if running from source)
 - KoboldCPP installed and configured
-
-## Building from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/koboldcpp-launcher.git
-cd koboldcpp-launcher
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the application
-python koboldcpp_launcher.py
-```
 
 ### Building Standalone Executables
 
