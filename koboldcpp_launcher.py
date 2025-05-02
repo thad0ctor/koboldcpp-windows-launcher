@@ -205,6 +205,8 @@ class KoboldCPPLauncher:
         self.override_ttsvolume = tk.StringVar(value="1.0")
         
         # Initialize GPU-related variables
+        self.gpu_layers_override = tk.StringVar()
+        self.gpu_layers_override_var = tk.StringVar()
         self.override_gpu_layers = tk.StringVar()
         self.override_tensor_split = tk.StringVar()
         self.recommended_tensor_split_var = tk.StringVar(value="Recommended: Based on GPU count")
@@ -246,11 +248,29 @@ class KoboldCPPLauncher:
         self.override_noavx2 = tk.BooleanVar(value=False)
         self.override_noblas = tk.BooleanVar(value=False)
         self.override_nommap = tk.BooleanVar(value=False)
+        self.override_failsafe = tk.BooleanVar(value=False)
+        self.override_debugmode = tk.BooleanVar(value=False)
+        self.override_highpriority = tk.BooleanVar(value=False)
+        self.override_foreground = tk.BooleanVar(value=False)
+        self.override_quiet = tk.BooleanVar(value=False)
+        self.override_ignoremissing = tk.BooleanVar(value=False)
+        self.override_quantkv = tk.StringVar()
+        self.override_smartcontext = tk.BooleanVar(value=False)
+        self.override_nobostoken = tk.BooleanVar(value=False)
+        self.override_maxrequestsize = tk.StringVar(value="1024")
         self.override_usemirostat = tk.BooleanVar(value=False)
         self.override_mirostat_tau = tk.StringVar(value="5.0")
         self.override_mirostat_eta = tk.StringVar(value="0.1")
-        self.override_temperature = tk.StringVar(value="0.7")
-        self.override_min_p = tk.StringVar(value="0.0")
+        self.override_stream = tk.BooleanVar(value=False)
+        self.override_bantokens = tk.BooleanVar(value=False)
+        self.override_forceversion = tk.StringVar(value="0")  # Initialize with "0" instead of empty string
+        self.override_contextshift = tk.BooleanVar(value=False)
+        self.override_skiplauncher = tk.BooleanVar(value=False)
+        self.override_multiuser = tk.BooleanVar(value=False)
+        
+        # Initialize generation parameters
+        self.override_temperature = tk.StringVar(value="0.8")
+        self.override_min_p = tk.StringVar(value="0.05")
         self.override_seed = tk.StringVar(value="-1")
         self.override_n_predict = tk.StringVar(value="-1")
         self.override_ignore_eos = tk.BooleanVar(value=False)
@@ -945,30 +965,13 @@ class KoboldCPPLauncher:
             self.override_usemirostat.set(config_data.get('usemirostat', False))
             self.override_mirostat_tau.set(config_data.get('mirostat_tau', 5.0))
             self.override_mirostat_eta.set(config_data.get('mirostat_eta', 0.1))
-            self.override_temperature.set(config_data.get('temperature', 0.7))
-            self.override_min_p.set(config_data.get('min_p', 0.0))
-            self.override_seed.set(config_data.get('seed', -1))
-            self.override_n_predict.set(config_data.get('n_predict', -1))
-            self.override_ignore_eos.set(config_data.get('ignore_eos', False))
-            self.override_ssl.set(config_data.get('ssl', False))
-            self.override_nocertify.set(config_data.get('nocertify', False))
-            self.override_password.set(config_data.get('password', ''))
-            self.override_blasbatchsize.set(config_data.get('blasbatchsize', 512))
-            self.override_blasthreads.set(config_data.get('blasthreads', 4))
-            self.override_contextsize.set(config_data.get('contextsize', 2048))
-            self.override_tensor_split.set(config_data.get('tensor_split', ''))
-            self.override_usecublas.set(config_data.get('usecublas', False))
-            self.override_usevulkan.set(config_data.get('usevulkan', False))
-            self.override_useclblast.set(config_data.get('useclblast', False))
-            self.override_usecpu.set(config_data.get('usecpu', False))
-            self.override_usemmap.set(config_data.get('usemmap', False))
-            self.override_usemlock.set(config_data.get('usemlock', False))
-            self.override_noavx2.set(config_data.get('noavx2', False))
-            self.override_noblas.set(config_data.get('noblas', False))
-            self.override_nommap.set(config_data.get('nommap', False))
-            self.override_usemirostat.set(config_data.get('usemirostat', False))
-            self.override_mirostat_tau.set(config_data.get('mirostat_tau', 5.0))
-            self.override_mirostat_eta.set(config_data.get('mirostat_eta', 0.1))
+            self.override_smartcontext.set(config_data.get('smartcontext', False))
+            self.override_stream.set(config_data.get('stream', False))
+            self.override_bantokens.set(config_data.get('bantokens', False))
+            self.override_forceversion.set(config_data.get('forceversion', ''))
+            self.override_contextshift.set(config_data.get('contextshift', False))
+            self.override_skiplauncher.set(config_data.get('skiplauncher', False))
+            self.override_multiuser.set(config_data.get('multiuser', False))
             self.port_var.set(config_data.get('port', 5001))
             self.host_var.set(config_data.get('host', '0.0.0.0'))
             self.launch_var.set(config_data.get('launch', False))
@@ -1008,7 +1011,7 @@ class KoboldCPPLauncher:
             self.status_text.set("Error reading directory")
 
     def save_current_config(self):
-        """Save current configuration to a file"""
+        debug_log("Saving current configuration")
         try:
             # Get enabled GPUs
             enabled_gpus = [gpu_id for gpu_id, var in self.gpu_vars.items() if var.get()]
@@ -1037,13 +1040,41 @@ class KoboldCPPLauncher:
                 except ValueError:
                     return value
             
-            config_data = {
-                "model": self.model_path.get(),
-                "threads": int(self.override_threads.get()) if self.override_threads.get() else 4,
-                "threads_batch": int(self.override_threads_batch.get()) if self.override_threads_batch.get() else 4,
-                "contextsize": int(self.override_contextsize.get()) if self.override_contextsize.get() else 2048,
-                "ropeconfig": self.override_ropeconfig.get(),
-                "usemmap": self.override_usemmap.get(),
+            # Default values for parameters
+            default_values = {
+                "gpu": [],
+                "gpu_backend": "CUDA",
+                "gpulayers": 0,
+                "threads": 0,
+                "blasthreads": 0,
+                "contextsize": 2048,
+                "usemlock": False,
+                "noavx2": False,
+                "noblas": False,
+                "nommap": False,
+                "usemirostat": False,
+                "mirostat_tau": 5.0,
+                "mirostat_eta": 0.1,
+                "smartcontext": False,
+                "stream": False,
+                "bantokens": False,
+                "forceversion": 0,
+                "contextshift": False,
+                "skiplauncher": False,
+                "multiuser": False,
+                "port": 5001,
+                "launch": False
+            }
+            
+            # Current values
+            current_values = {
+                "model": current_model if current_model else "",
+                "gpu": enabled_gpus,
+                "gpu_backend": selected_backend,
+                "gpulayers": max(0, int(self.override_gpu_layers.get())) if self.override_gpu_layers.get() else 0,
+                "threads": convert_numeric(self.threads_var.get()),
+                "blasthreads": convert_numeric(self.blas_threads_var.get()),
+                "contextsize": convert_numeric(self.context_size_var.get()),
                 "usemlock": self.override_usemlock.get(),
                 "noavx2": self.override_noavx2.get(),
                 "noblas": self.override_noblas.get(),
@@ -1051,17 +1082,22 @@ class KoboldCPPLauncher:
                 "usemirostat": self.override_usemirostat.get(),
                 "mirostat_tau": convert_numeric(self.override_mirostat_tau.get()),
                 "mirostat_eta": convert_numeric(self.override_mirostat_eta.get()),
-                "temperature": convert_numeric(self.override_temperature.get()),
-                "min_p": convert_numeric(self.override_min_p.get()),
-                "seed": int(self.override_seed.get()) if self.override_seed.get() else -1,
-                "n_predict": int(self.override_n_predict.get()) if self.override_n_predict.get() else -1,
-                "ignore_eos": self.override_ignore_eos.get(),
-                "ssl": self.override_ssl.get(),
-                "nocertify": self.override_nocertify.get(),
-                "password": self.override_password.get(),
-                "blasbatchsize": int(self.override_blasbatchsize.get()) if self.override_blasbatchsize.get() else 512,
-                "blasthreads": int(self.override_blasthreads.get()) if self.override_blasthreads.get() else 4
+                "smartcontext": self.override_smartcontext.get(),
+                "stream": self.override_stream.get(),
+                "bantokens": self.override_bantokens.get(),
+                "forceversion": int(self.override_forceversion.get()) if self.override_forceversion.get() else 0,
+                "contextshift": self.override_contextshift.get(),
+                "skiplauncher": self.override_skiplauncher.get(),
+                "multiuser": self.override_multiuser.get(),
+                "port": convert_numeric(self.port_var.get()),
+                "launch": self.launch_var.get()
             }
+            
+            # Only include parameters that differ from defaults or are required
+            config_data = {}
+            for key, value in current_values.items():
+                if key == "model" or value != default_values.get(key):
+                    config_data[key] = value
             
             # Add GPU-specific flags only if they are enabled
             if self.override_flashattention.get():
@@ -1553,7 +1589,8 @@ cd /d "{exe_dir}"
                 'model_dirs': self.model_dirs,
                 'gpu_settings': {
                     str(gpu_id): {
-                        'enabled': self.gpu_selection[gpu_id].get()
+                        'enabled': self.gpu_selection[gpu_id].get(),
+                        'memory': float(self.gpu_memory[gpu_id].get())
                     }
                     for gpu_id in self.gpu_selection
                 },
@@ -1945,7 +1982,7 @@ cd /d "{exe_dir}"
             debug_log(f"{b}: {var.get()}")
 
     def save_current_config(self):
-        """Save current configuration to a file"""
+        debug_log("Saving current configuration")
         try:
             # Get enabled GPUs
             enabled_gpus = [gpu_id for gpu_id, var in self.gpu_vars.items() if var.get()]
@@ -1974,13 +2011,15 @@ cd /d "{exe_dir}"
                 except ValueError:
                     return value
             
+            # Only save parameters that are actually used by KoboldCPP
             config_data = {
-                "model": self.model_path.get(),
-                "threads": int(self.override_threads.get()) if self.override_threads.get() else 4,
-                "threads_batch": int(self.override_threads_batch.get()) if self.override_threads_batch.get() else 4,
-                "contextsize": int(self.override_contextsize.get()) if self.override_contextsize.get() else 2048,
-                "ropeconfig": self.override_ropeconfig.get(),
-                "usemmap": self.override_usemmap.get(),
+                "model": current_model if current_model else "",
+                "gpu": enabled_gpus,
+                "gpu_backend": selected_backend,
+                "gpulayers": max(0, int(self.override_gpu_layers.get())) if self.override_gpu_layers.get() else 0,
+                "threads": convert_numeric(self.threads_var.get()),
+                "blasthreads": convert_numeric(self.blas_threads_var.get()),
+                "contextsize": convert_numeric(self.context_size_var.get()),
                 "usemlock": self.override_usemlock.get(),
                 "noavx2": self.override_noavx2.get(),
                 "noblas": self.override_noblas.get(),
@@ -1988,16 +2027,16 @@ cd /d "{exe_dir}"
                 "usemirostat": self.override_usemirostat.get(),
                 "mirostat_tau": convert_numeric(self.override_mirostat_tau.get()),
                 "mirostat_eta": convert_numeric(self.override_mirostat_eta.get()),
-                "temperature": convert_numeric(self.override_temperature.get()),
-                "min_p": convert_numeric(self.override_min_p.get()),
-                "seed": int(self.override_seed.get()) if self.override_seed.get() else -1,
-                "n_predict": int(self.override_n_predict.get()) if self.override_n_predict.get() else -1,
-                "ignore_eos": self.override_ignore_eos.get(),
-                "ssl": self.override_ssl.get(),
-                "nocertify": self.override_nocertify.get(),
-                "password": self.override_password.get(),
-                "blasbatchsize": int(self.override_blasbatchsize.get()) if self.override_blasbatchsize.get() else 512,
-                "blasthreads": int(self.override_blasthreads.get()) if self.override_blasthreads.get() else 4
+                "smartcontext": self.override_smartcontext.get(),
+                "stream": self.override_stream.get(),
+                "bantokens": self.override_bantokens.get(),
+                "forceversion": int(self.override_forceversion.get()) if self.override_forceversion.get() else 0,
+                "contextshift": self.override_contextshift.get(),
+                "skiplauncher": self.override_skiplauncher.get(),
+                "multiuser": self.override_multiuser.get(),
+                "port": convert_numeric(self.port_var.get()),
+                "host": self.host_var.get(),
+                "launch": self.launch_var.get()
             }
             
             # Add GPU-specific flags only if they are enabled
@@ -2391,7 +2430,8 @@ A GUI launcher for KoboldCPP
                 'model_dirs': self.model_dirs.copy(),
                 'gpu_settings': {
                     str(gpu_id): {
-                        'enabled': self.gpu_selection[gpu_id].get()
+                        'enabled': self.gpu_selection[gpu_id].get(),
+                        'memory': float(self.gpu_memory[gpu_id].get())
                     }
                     for gpu_id in self.gpu_selection
                 },
