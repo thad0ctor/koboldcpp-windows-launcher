@@ -5,7 +5,6 @@
   "gpulayers": 100,
   "threads": 48,
   "blasthreads": 4,
-  "highpriority": false,
   "contextsize": 2048,
   "ropeconfig": "",
   "ropefreqbase": "10000.0",
@@ -23,8 +22,5 @@
   "forceversion": "",
   "contextshift": false,
   "skiplauncher": false,
-  "multiuser": false,
-  "port": "5001",
-  "host": "0.0.0.0",
-  "launch": false
+  "multiuser": false
 } 
